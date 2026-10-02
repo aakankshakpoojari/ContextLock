@@ -2,35 +2,175 @@
 
 @layer base {
   :root {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 10%;
-    --card-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    --border: 217 33% 18%;
+    --background: #F4F1EA;
+    --foreground: #000000;
+    --border: #000000;
+    --accent-orange: #FF3B00;
+    --accent-blue: #0038FF;
+    --accent-yellow: #FDFF00;
+  }
+
+  * {
+    border-color: #000000;
   }
 
   body {
-    background-color: #080c16;
-    color: #f1f5f9;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    background-color: #F4F1EA;
+    color: #000000;
+    font-family: var(--font-mono), monospace;
     min-height: 100vh;
+  }
+
+  h1, h2, h3, .font-editorial {
+    font-family: var(--font-serif), Georgia, serif;
   }
 }
 
-/* Custom subtle grid background for investigative terminal vibe */
-.investigative-grid {
-  background-size: 32px 32px;
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+/* Brutalist utilities */
+.font-serif {
+  font-family: var(--font-serif), Georgia, serif;
 }
 
-.glow-blue {
-  box-shadow: 0 0 40px -10px rgba(56, 189, 248, 0.15);
+.font-mono {
+  font-family: var(--font-mono), monospace;
 }
 
-.glow-purple {
-  box-shadow: 0 0 50px -12px rgba(168, 85, 247, 0.18);
+/* ==========================================================================
+   PROFESSIONAL EDITORIAL MOTION & ANIMATIONS
+   Sharp cubic-bezier easing, zero elastic/bouncy fluff
+   ========================================================================== */
+
+/* 1. Staggered Mask Reveal (Text slides up from behind overflow-hidden container) */
+@keyframes maskRevealUp {
+  0% {
+    transform: translateY(115%);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0%);
+    opacity: 1;
+  }
 }
+
+.animate-mask-1 {
+  display: inline-block;
+  will-change: transform;
+  animation: maskRevealUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+
+.animate-mask-2 {
+  display: inline-block;
+  will-change: transform;
+  animation: maskRevealUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.28s both;
+}
+
+.animate-mask-3 {
+  display: inline-block;
+  will-change: transform;
+  animation: maskRevealUp 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both;
+}
+
+/* 2. Grid Lines & Borders Draw-In Animations */
+@keyframes lineDrawX {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes lineDrawY {
+  0% {
+    transform: scaleY(0);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-draw-x {
+  transform-origin: left;
+  animation: lineDrawX 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+
+.animate-draw-x-delayed {
+  transform-origin: left;
+  animation: lineDrawX 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both;
+}
+
+.animate-draw-y {
+  transform-origin: top;
+  animation: lineDrawY 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+
+/* 3. Delayed Body & Content Fade-In (triggers after headline & grid lines) */
+@keyframes editorialFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0px);
+  }
+}
+
+.animate-fade-delayed {
+  animation: editorialFadeIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
+}
+
+.animate-fade-delayed-2 {
+  animation: editorialFadeIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.7s both;
+}
+
+/* 4. Monospace Mechanical Blinking Cursor */
+@keyframes cursorBlink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+.animate-cursor {
+  display: inline-block;
+  animation: cursorBlink 0.8s infinite;
+}
+
+/* Instant Raw Hover Inversion (Zero Delay) */
+.brutalist-button {
+  background-color: #000000;
+  color: #FFFFFF;
+  border: 1px solid #000000;
+  border-radius: 0px;
+  text-transform: uppercase;
+  font-weight: 700;
+  transition: none !important;
+}
+
+.brutalist-button:hover {
+  background-color: #FF3B00 !important;
+  color: #000000 !important;
+}
+
+.brutalist-button-outline {
+  background-color: transparent;
+  color: #000000;
+  border: 1px solid #000000;
+  border-radius: 0px;
+  text-transform: uppercase;
+  font-weight: 700;
+  transition: none !important;
+}
+
+.brutalist-button-outline:hover {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+

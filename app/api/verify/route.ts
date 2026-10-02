@@ -1,134 +1,301 @@
 import { NextRequest, NextResponse } from "next/server";
-import { VerifyRequestSchema, VerificationResult } from "@/types";
+import { VerifyRequestSchema, VerificationResult, EvidenceSource, AtomicClaim, ContextStatus, MediaInput } from "@/types";
+import { getSupabaseClient } from "@/lib/supabase";
+import { MEDIA_BUCKET_NAME } from "@/lib/media/storage";
+import {
+  retrieveEvidence,
+} from "@/lib/gemini-service";
+import {
+  analyzeMedia,
+  analyzeEvidence,
+  decomposeClaims,
+} from "@/lib/ai/provider";
+import { z } from "zod";
+import { exec } from "child_process";
+import { promisify } from "util";
+import crypto from "crypto";
 
-/**
- * ContextLock Verification API Route
- * POST /api/verify
- *
- * Current Phase: Initial Foundation & Mock Contract
- * Next Phase: Integration with Google Gemini Multimodal Analysis + Google Search Grounding Pipeline
- *
- * The eventual pipeline executed here will be:
- * 1. Multimodal media analysis via Gemini (analyze video/image for visual cues, OCR, timestamps)
- * 2. Claim decomposition (extract atomic WHAT, WHERE, WHEN, WHO claims)
- * 3. Evidence retrieval via Gemini Google Search grounding
- * 4. Claim <-> Evidence comparative reasoning
- * 5. Structured context verification report generation (Supported / Contradicted / Insufficient)
- */
+const execAsync = promisify(exec);
+
+function logStep(step: string, details?: unknown) {
+  if (details) {
+    console.log(`[VERIFY] ${step}`, details);
+  } else {
+    console.log(`[VERIFY] ${step}`);
+  }
+}
+
+
+// Extend the existing schema to explicitly require caseId and mediaId for the pipeline
+const PipelineRequestSchema = VerifyRequestSchema.extend({
+  caseId: z.string().min(1, "caseId is required"),
+  mediaId: z.string().min(1, "mediaId is required"),
+});
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    logStep("Request received");
 
-    // 1. Runtime validation with Zod
-    const validationResult = VerifyRequestSchema.safeParse(body);
+    // 1. INPUT VALIDATION
+    const validationResult = PipelineRequestSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
         {
-          error: "Invalid verification request payload",
+          success: false,
+          error: "INVALID_REQUEST",
+          message: "Invalid verification request payload",
           details: validationResult.error.format(),
         },
         { status: 400 }
       );
     }
 
-    const { media, claim } = validationResult.data;
+    const { caseId, mediaId, claim } = validationResult.data;
+    logStep("validation", { caseId, mediaId, claimText: claim.rawText });
+    const supabase = getSupabaseClient();
 
-    // 2. Foundation mock response demonstrating the claim-level verification schema
-    // Note: This contract serves as the target structure for the real Gemini pipeline
-    const mockVerificationResult: VerificationResult = {
-      id: `verif-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      media: media || {
-        type: "image",
-        fileName: "unnamed-media.jpg",
-      },
-      claim: {
-        rawText: claim.rawText,
-        sourcePlatform: claim.sourcePlatform || "Social Media / Messaging",
-        claimedDate: claim.claimedDate,
-        claimedLocation: claim.claimedLocation,
-      },
-      // Example context mismatch: genuine footage used with misleading temporal claim
-      contextStatus: "temporal_mismatch",
-      summaryExplanation:
-        "The media depicts genuine flooding, but evidence confirms this footage was captured in August 2023, directly contradicting the claim that it depicts today's events.",
-      atomicClaims: [
-        {
-          id: "claim-what-001",
-          type: "what",
-          claimText: "Massive urban flooding with submerged vehicles",
-          status: "supported",
-          confidenceScore: 0.94,
-          explanation:
-            "Visual examination and archival reports confirm severe waterlogging and submerged vehicles in the media.",
-          evidenceIds: ["ev-01"],
-        },
-        {
-          id: "claim-where-002",
-          type: "where",
-          claimText: "Mangalore city center (Kottara Chowki)",
-          status: "supported",
-          confidenceScore: 0.89,
-          explanation:
-            "Identified landmarks, commercial signboards, and local geography match Kottara Chowki, Mangalore.",
-          evidenceIds: ["ev-01", "ev-02"],
-        },
-        {
-          id: "claim-when-003",
-          type: "when",
-          claimText: "Occurring today / current incident",
-          status: "contradicted",
-          confidenceScore: 0.96,
-          explanation:
-            "Weather monitoring and archival records show this exact footage was first broadcasted on August 14, 2023. Current weather in Mangalore indicates dry conditions.",
-          evidenceIds: ["ev-02", "ev-03"],
-        },
-      ],
-      evidence: [
-        {
-          id: "ev-01",
-          title: "Monsoon Inundation in Kottara Chowki: Local Report",
-          url: "https://example.com/news/mangalore-floods-august-2023",
-          source: "Coastal News Bureau",
-          publishedDate: "2023-08-14",
-          snippet:
-            "Water levels rose rapidly near Kottara Chowki following torrential rainfall on August 14, 2023, inundating major road arteries.",
-          relationship: "supports",
-          reliabilityScore: 0.91,
-        },
-        {
-          id: "ev-02",
-          title: "Fact Check: 2023 Mangalore Flood Video Resurfaces as Current",
-          url: "https://example.com/factcheck/mangalore-flood-video-2023",
-          source: "Independent Fact Checkers",
-          publishedDate: "2024-06-10",
-          snippet:
-            "A recurring video claiming to show fresh flooding in coastal Karnataka is actually archive footage from the 2023 monsoon season.",
-          relationship: "contradicts",
-          reliabilityScore: 0.97,
-        },
-        {
-          id: "ev-03",
-          title: "Mangalore Daily Weather & Precipitation Log",
-          url: "https://example.com/weather/mangalore-today",
-          source: "State Disaster Monitoring Center",
-          publishedDate: new Date().toISOString().split("T")[0],
-          snippet:
-            "Clear to partly cloudy skies recorded across Mangalore urban limits. No flood warnings in effect.",
-          relationship: "contradicts",
-          reliabilityScore: 0.95,
-        },
-      ],
-      geminiModelUsed: "gemini-2.5-flash (foundation-mock)",
+    // 2. MEDIA LOADING
+    const { data: mediaRecord, error: mediaError } = await supabase
+      .from("media")
+      .select("*")
+      .eq("id", mediaId)
+      .eq("case_id", caseId)
+      .single();
+
+    if (mediaError || !mediaRecord) {
+      return NextResponse.json(
+        { success: false, error: "MEDIA_NOT_FOUND", message: "Media not found for the provided case and media IDs." },
+        { status: 404 }
+      );
+    }
+
+    logStep("media lookup", "success");
+    // Download media from storage to analyze it
+    const { data: storageData, error: storageError } = await supabase.storage
+      .from(MEDIA_BUCKET_NAME)
+      .download(mediaRecord.storage_path);
+
+    if (storageError || !storageData) {
+      return NextResponse.json(
+        { success: false, error: "STORAGE_ERROR", message: "Failed to retrieve media file from storage." },
+        { status: 500 }
+      );
+    }
+    const arrayBuffer = await storageData.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
+    // 3. MEDIA ANALYSIS
+    logStep("media analysis");
+    let mediaObservations;
+    let aiModelUsed = "";
+    try {
+      const aiRes = await analyzeMedia({
+        textPrompt: "Analyze the provided media and extract objective, verifiable observations without forming conclusions.",
+        mediaParts: [
+          {
+            inlineData: {
+              mimeType: mediaRecord.mime_type,
+              data: base64Data,
+            },
+          },
+        ],
+      });
+      mediaObservations = aiRes.data;
+      aiModelUsed = aiRes.model;
+    } catch (e: unknown) {
+      console.error("[MEDIA] Gemini analysis failed:", e);
+      const err = e as { message?: string, status?: number, statusCode?: number };
+      console.error("Error details:", {
+          message: err.message,
+          status: err.status || err.statusCode,
+          model: "gemini-3.5-flash-lite", // or whatever model is used
+          payloadSize: base64Data.length,
+          mimeType: mediaRecord.mime_type,
+      });
+      return NextResponse.json(
+        { success: false, error: "MEDIA_ANALYSIS_FAILED", message: "Media analysis failed." },
+        { status: 500 }
+      );
+    }
+
+    // 4. CLAIM DECOMPOSITION
+    logStep("claim decomposition");
+    const decompRes = await decomposeClaims(claim.rawText);
+    const atomicClaims = decompRes.data;
+
+    // 5. EVIDENCE RETRIEVAL (One single search for the entire claim)
+    const allEvidenceSources: EvidenceSource[] = [];
+    let overarchingEvidence: EvidenceSource[] = [];
+    logStep(`evidence retrieval started for overarching user claim`);
+    try {
+      const overarchingClaim: AtomicClaim = {
+        id: "claim_main",
+        type: "other",
+        claimText: claim.rawText,
+        status: "insufficient",
+        confidenceScore: 0,
+        explanation: "",
+        evidenceIds: [],
+      };
+      
+      overarchingEvidence = await retrieveEvidence(overarchingClaim, atomicClaims);
+      logStep(`evidence retrieval finished, count: ${overarchingEvidence.length}`);
+    } catch (err) {
+      console.error(`Evidence retrieval failed for main claim:`, err);
+      logStep("EVIDENCE_RETRIEVAL_FAILED", err instanceof Error ? err.message : String(err));
+    }
+
+    // 6. REASONING (Sequential per claim)
+    const processedAtomicClaims: AtomicClaim[] = [];
+
+    for (let i = 0; i < atomicClaims.length; i++) {
+      const ac = atomicClaims[i];
+
+      let reasoningResult;
+      try {
+        logStep(`reasoning started for claim ${ac.id}`);
+        const resRes = await analyzeEvidence(ac, overarchingEvidence, atomicClaims);
+        reasoningResult = resRes.data;
+        logStep(`reasoning finished for claim ${ac.id}`);
+      } catch (err) {
+        console.error(`Reasoning failed for claim ${ac.id}:`, err);
+        logStep("REASONING_FAILED", err instanceof Error ? err.message : String(err));
+        throw new Error(`Reasoning failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      // Merge evidence relationships and add to overall list
+      overarchingEvidence.forEach((ev) => {
+        // Deep clone to avoid mutating the shared overarchingEvidence
+        const clonedEv = { ...ev };
+        const rel = reasoningResult.evidenceRelationships.find((r: { evidenceId: string, relationship: string }) => r.evidenceId === clonedEv.id);
+        if (rel) {
+          clonedEv.relationship = rel.relationship;
+        } else {
+          clonedEv.relationship = "unrelated";
+        }
+        
+        // Track the strongest relationship for each evidence across all claims
+        const existingEvIndex = allEvidenceSources.findIndex(e => e.id === clonedEv.id);
+        if (existingEvIndex === -1) {
+          allEvidenceSources.push(clonedEv);
+        } else {
+          // Upgrade relationship if necessary (supports > context > unrelated)
+          const currentRel = allEvidenceSources[existingEvIndex].relationship;
+          const newRel = clonedEv.relationship;
+          
+          if (newRel === "supports" && currentRel !== "supports") {
+            allEvidenceSources[existingEvIndex].relationship = "supports";
+          } else if (newRel === "contradicts" && currentRel !== "supports" && currentRel !== "contradicts") {
+            allEvidenceSources[existingEvIndex].relationship = "contradicts";
+          } else if (newRel === "context" && currentRel === "unrelated") {
+            allEvidenceSources[existingEvIndex].relationship = "context";
+          }
+        }
+      });
+
+      processedAtomicClaims.push({
+        id: ac.id,
+        type: ac.type,
+        claimText: ac.claimText,
+        status: reasoningResult.status,
+        confidenceScore: 0.9,
+        explanation: reasoningResult.explanation,
+        evidenceIds: overarchingEvidence.map((e) => e.id),
+      });
+    }
+
+
+    // 7. RESULT AGGREGATION & CONTEXT STATUS
+    // Derive ContextStatus based on atomic claim statuses conservatively
+    const hasInsufficient = processedAtomicClaims.some(c => c.status === "insufficient");
+    const contradictedClaims = processedAtomicClaims.filter(c => c.status === "contradicted");
+    
+    let overallContextStatus: ContextStatus = "claim_supported";
+    if (contradictedClaims.length > 0) {
+      // Determine specific mismatch type
+      const contradictedTypes = contradictedClaims.map(c => c.type);
+      if (contradictedTypes.includes("when")) {
+        overallContextStatus = "temporal_mismatch";
+      } else if (contradictedTypes.includes("where")) {
+        overallContextStatus = "geographic_mismatch";
+      } else if (contradictedTypes.includes("what")) {
+        overallContextStatus = "event_mismatch";
+      } else {
+        overallContextStatus = "context_mismatch";
+      }
+    } else if (hasInsufficient) {
+      overallContextStatus = "unverified";
+    }
+
+    const mediaInput: MediaInput = {
+      id: mediaRecord.id,
+      type: mediaRecord.type,
+      fileName: mediaRecord.metadata?.originalName || "media_file",
+      fileSize: mediaRecord.metadata?.size,
+      mimeType: mediaRecord.mime_type,
+      url: mediaRecord.storage_path,
     };
 
-    return NextResponse.json(mockVerificationResult, { status: 200 });
+    const verificationResult: VerificationResult = {
+      id: `verif-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      media: mediaInput,
+      claim: claim,
+      contextStatus: overallContextStatus,
+      summaryExplanation: `The claim was evaluated against external evidence. The overall status is determined as ${overallContextStatus} based on the underlying atomic claims.`,
+      atomicClaims: processedAtomicClaims,
+      evidence: allEvidenceSources,
+      geminiModelUsed: aiModelUsed,
+    };
+
+    // 8. ZK PROOF GENERATION
+    logStep("generating ZK proof");
+    try {
+      // Create numeric fields for Noir
+      // Hash strings to 32 bytes, then take first 15 bytes to ensure they fit in a Noir Field
+      const mediaHashHex = crypto.createHash('sha256').update(mediaRecord.id).digest('hex').substring(0, 30);
+      const claimHashHex = crypto.createHash('sha256').update(claim.rawText).digest('hex').substring(0, 30);
+      
+      const mediaHashField = BigInt('0x' + mediaHashHex).toString(10);
+      const claimHashField = BigInt('0x' + claimHashHex).toString(10);
+      
+      // Mapping verdict to a number
+      let verdictNum = "0";
+      if (overallContextStatus === "claim_supported") verdictNum = "1";
+      else if (overallContextStatus === "unverified") verdictNum = "2";
+      else verdictNum = "3"; // mismatch/contradicted
+
+      const nonce = Math.floor(Math.random() * 1000000).toString(10);
+
+      // Execute the prove script
+      const { stdout } = await execAsync(`npx tsx zk/scripts/prove.ts ${mediaHashField} ${claimHashField} ${verdictNum} ${nonce}`);
+      
+      const jsonStart = stdout.indexOf('{');
+      const zkRes = JSON.parse(stdout.substring(jsonStart));
+      
+      verificationResult.zkReceipt = {
+        commitment: zkRes.commitment,
+        proof: zkRes.proof,
+        verdict: overallContextStatus
+      };
+      
+      logStep("ZK proof generation complete", zkRes.commitment);
+    } catch (zkErr) {
+      console.error("ZK Proof generation failed:", zkErr);
+      logStep("ZK_PROOF_FAILED", zkErr instanceof Error ? zkErr.message : String(zkErr));
+      // Continue without ZK proof if it fails (graceful degradation)
+    }
+
+    // Return VerificationResult-compatible response
+    logStep("final result", overallContextStatus);
+    return NextResponse.json(verificationResult, { status: 200 });
+
   } catch (err: unknown) {
-    console.error("Verification API Error:", err);
+    console.error("Verification Pipeline Error:", err);
     return NextResponse.json(
       {
-        error: "Internal server error during verification request processing",
+        success: false,
+        error: "INTERNAL_SERVER_ERROR",
         message: err instanceof Error ? err.message : String(err),
       },
       { status: 500 }

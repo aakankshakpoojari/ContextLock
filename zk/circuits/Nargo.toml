@@ -1,0 +1,7 @@
+[package]
+name = "contextlock_zk"
+type = "bin"
+authors = ["ContextLock"]
+compiler_version = ">=0.33.0"
+
+[dependencies]

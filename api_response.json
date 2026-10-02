@@ -1,0 +1,73 @@
+{
+  "id": "verif-1790846489779",
+  "timestamp": "2026-10-01T09:21:29.779Z",
+  "media": {
+    "id": "mock",
+    "fileName": "media_file",
+    "mimeType": "image/png"
+  },
+  "claim": {
+    "rawText": "this image shows fire in mrpl yesterday",
+    "sourcePlatform": "whatsapp"
+  },
+  "contextStatus": "unverified",
+  "summaryExplanation": "The claim was evaluated against external evidence. The overall status is determined as unverified based on the underlying atomic claims.",
+  "atomicClaims": [
+    {
+      "id": "claim-what-1790846477963",
+      "type": "what",
+      "claimText": "fire",
+      "status": "supported",
+      "confidenceScore": 0.9,
+      "explanation": "The evidence (gn-j3ymefz) explicitly mentions an MRPL refinery fire, which directly supports the target claim 'fire'.",
+      "evidenceIds": [
+        "gn-j3ymefz"
+      ]
+    },
+    {
+      "id": "claim-where-1790846477963",
+      "type": "where",
+      "claimText": "mrpl",
+      "status": "supported",
+      "confidenceScore": 0.9,
+      "explanation": "The evidence (gn-j3ymefz) explicitly mentions 'MRPL' (Mangalore Refinery and Petrochemicals Limited) in the title and context of a refinery fire in Mangaluru, which directly supports the target claim.",
+      "evidenceIds": [
+        "gn-j3ymefz"
+      ]
+    },
+    {
+      "id": "claim-when-1790846477963",
+      "type": "when",
+      "claimText": "yesterday",
+      "status": "insufficient",
+      "confidenceScore": 0.9,
+      "explanation": "The provided evidence mentions the MRPL refinery fire, but it does not specify when the event occurred, making the claim of 'yesterday' unverifiable.",
+      "evidenceIds": [
+        "gn-j3ymefz"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "gn-j3ymefz",
+      "title": "MRPL Blast: Massive Explosion and Thick Smoke Shake Mangaluru As Refinery Fire Triggers Panic (Videos) - latestly.com",
+      "url": "https://news.google.com/rss/articles/CBMi4gFBVV95cUxNdjN6c3pPUTk3RHlqSXRlbjJfZkpVY0djZlpPaUZfLWhJdkMtcTVneE1jR3pMeVNNWmpzQ1ZZS2FhanZNYXNYa2lnajVxNjM1VWpXcGQ4d2VWMkJBeUtnSklMUnUtWVBFcjdSanM3a1Y4Yl95UzRzdERQOTNTWVZzN0Jaalg4am9DVHh6WHNBUk1TMzc0LUhQcENlNHdfZUFaQk51N1drWUdXNm9JaUdRRnVjTDlyNFltTU9XMWVFRTZnUWlWR29zOTNIYXgtSU9aaW5mLVlJbUhENWE2ZUdteXJB0gHnAUFVX3lxTE1hN1dKdFU4ZGU3WXZBaGFsaTBaaGU0OFcxRGZILXFfWUtmMHVFYzFPTkFNczFsazRXWUt0OEJnM1hQbS13SEw2MURyeG9pajVidWR0TndDbDBxdUV5WjJ5eDItNHVvNjY5cEdSc01yd3V1WkNGWjUyM2FiTjRpb21UTGp6NVkyRmNobXczeWRQb0Q5aTZueGRFUzBpR2pMa2I2eW91b3dUYjBYZC1mRmJxUWZlWTRaeVRibzc0dVN6UHpEY2JfTkJLMHRsSFo0WWFQazhrUEE2aVI4bjlOMW9BS3hxdmJoTQ?oc=5",
+      "source": "latestly.com",
+      "publishedDate": "2026-09-30T09:09:53.000Z",
+      "snippet": "MRPL Blast: Massive Explosion and Thick Smoke Shake Mangaluru As Refinery Fire Triggers Panic (Videos)&nbsp;&nbsp;latestly.com",
+      "relationship": "supports",
+      "reliabilityScore": 0.8
+    },
+    {
+      "id": "gn-j3ymefz",
+      "title": "MRPL Blast: Massive Explosion and Thick Smoke Shake Mangaluru As Refinery Fire Triggers Panic (Videos) - latestly.com",
+      "url": "https://news.google.com/rss/articles/CBMi4gFBVV95cUxNdjN6c3pPUTk3RHlqSXRlbjJfZkpVY0djZlpPaUZfLWhJdkMtcTVneE1jR3pMeVNNWmpzQ1ZZS2FhanZNYXNYa2lnajVxNjM1VWpXcGQ4d2VWMkJBeUtnSklMUnUtWVBFcjdSanM3a1Y4Yl95UzRzdERQOTNTWVZzN0Jaalg4am9DVHh6WHNBUk1TMzc0LUhQcENlNHdfZUFaQk51N1drWUdXNm9JaUdRRnVjTDlyNFltTU9XMWVFRTZnUWlWR29zOTNIYXgtSU9aaW5mLVlJbUhENWE2ZUdteXJB0gHnAUFVX3lxTE1hN1dKdFU4ZGU3WXZBaGFsaTBaaGU0OFcxRGZILXFfWUtmMHVFYzFPTkFNczFsazRXWUt0OEJnM1hQbS13SEw2MURyeG9pajVidWR0TndDbDBxdUV5WjJ5eDItNHVvNjY5cEdSc01yd3V1WkNGWjUyM2FiTjRpb21UTGp6NVkyRmNobXczeWRQb0Q5aTZueGRFUzBpR2pMa2I2eW91b3dUYjBYZC1mRmJxUWZlWTRaeVRibzc0dVN6UHpEY2JfTkJLMHRsSFo0WWFQazhrUEE2aVI4bjlOMW9BS3hxdmJoTQ?oc=5",
+      "source": "latestly.com",
+      "publishedDate": "2026-09-30T09:09:53.000Z",
+      "snippet": "MRPL Blast: Massive Explosion and Thick Smoke Shake Mangaluru As Refinery Fire Triggers Panic (Videos)&nbsp;&nbsp;latestly.com",
+      "relationship": "context",
+      "reliabilityScore": 0.8
+    }
+  ],
+  "geminiModelUsed": "gemini-3.5-flash-lite"
+}

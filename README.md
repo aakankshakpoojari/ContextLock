@@ -103,15 +103,45 @@ Every conclusion is linked to traceable citations, publication dates, and source
 
 ---
 
-## 4. Tech Stack
+## 4. Tech Stack & AI Architecture
 
 * **Frontend:** [Next.js](https://nextjs.org/) (App Router), TypeScript, [Tailwind CSS](https://tailwindcss.com/)
-* **AI & Multimodal:** [Google Gemini API](https://ai.google.dev/) via official `@google/genai` SDK
-* **Validation:** [Zod](https://zod.dev/) for type-safe schemas and structured AI outputs
-* **API / Backend:** Next.js Route Handlers (`app/api/verify/route.ts`)
+* **AI Orchestration Layer (`lib/ai/`):**
+  * **Primary Provider:** [Google Gemini API](https://ai.google.dev/) via official `@google/genai` SDK
+    * `gemini-3.8-flash` (multimodal reasoning & structured JSON outputs)
+    * `gemini-3.1-pro-preview` (deep investigative reasoning)
+    * `gemini-3.5-flash-lite` (high-throughput atomic verification)
+  * **Fallback Provider:** [xAI Grok API](https://console.x.ai/)
+    * `grok-2-vision-1212` (multimodal vision fallback)
+    * `grok-2-latest` (reasoning & claim decomposition fallback)
+* **Validation & Schemas:** [Zod](https://zod.dev/) for runtime type safety and normalized AI output schemas
+* **API / Backend:** Next.js Route Handlers (`app/api/verify/route.ts`, `app/api/gemini/test/route.ts`)
 * **Persistence:** [Supabase](https://supabase.com/) (`@supabase/supabase-js`) for planned case storage & media assets
 * **Deployment:** [Vercel](https://vercel.com/)
 * **Package Manager:** `pnpm`
+
+### Server-Side AI Orchestration Architecture
+
+```text
+┌─────────────────┐       ┌───────────────────────────┐       ┌────────────────────────┐
+│     BROWSER     │ ────> │      NEXT.JS BACKEND      │ ────> │   GOOGLE GEMINI API    │
+│  Client UI      │ <──── │   AI Orchestration Layer  │       │ (Primary Provider)     │
+│ (No API keys!)  │       │       (lib/ai/...)        │       └───────────┬────────────┘
+└─────────────────┘       └─────────────┬─────────────┘                   │ (on failure)
+                                        │                                 ▼
+                                        │                     ┌────────────────────────┐
+                                        └───────────────────> │     xAI GROK API       │
+                                                              │ (Fallback Provider)    │
+                                                              └────────────────────────┘
+```
+
+> [!IMPORTANT]
+> **Core Architectural Principles:**
+> 1. **Server-Only Execution:** AI calls are executed strictly on the server (`import "server-only"` in `lib/ai/`). API keys (`GEMINI_API_KEY`, `GROK_API_KEY`) are never exposed, logged, or bundled client-side.
+> 2. **Gemini Primary + Grok Fallback:** The orchestrator tries Google Gemini first. If Gemini encounters rate limits (429), high demand (503), timeouts, or service unavailability, it automatically fails over to xAI Grok and normalizes the response into the exact same ContextLock schema.
+> 3. **Observations ≠ Conclusions:** Media perception strictly extracts objective visual, textual, and temporal indicators. The AI does NOT determine authenticity or verdict in isolation.
+> 4. **Separate Evidence Retrieval:** External evidence retrieval (e.g. Google Search Grounding) is maintained as an independent downstream stage rather than black-box question-answering.
+> 5. **Not a Chatbot:** We do NOT implement ContextLock as `User Question -> AI -> Answer`. The verification pipeline systematically decomposes claims into atomic dimensions (WHAT, WHERE, WHEN, WHO) and links each to external evidence relationships.
 
 ---
 
@@ -121,44 +151,57 @@ Every conclusion is linked to traceable citations, publication dates, and source
 ContextLock/
 ├── app/
 │   ├── layout.tsx              # Root application layout & metadata
-│   ├── page.tsx                # Homepage communicating core vision & concept
-│   ├── globals.css             # Tailwind v4 styles & theme configuration
+│   ├── page.tsx                # Editorial homepage with motion design
+│   ├── globals.css             # Tailwind v4 styles & brutalist animation tokens
 │   ├── verify/
 │   │   └── page.tsx            # Verification workspace shell & layout
 │   └── api/
-│       └── verify/
-│           └── route.ts        # Next.js Route Handler for verification
+│       ├── verify/
+│       │   └── route.ts        # Next.js Route Handler for verification
+│       └── gemini/
+│           └── test/
+│               └── route.ts    # Diagnostic test endpoint (Next.js -> AI Orchestrator)
 │
 ├── components/
 │   ├── Navbar.tsx              # Application header & navigation
 │   ├── Footer.tsx              # Hackathon track & team credits
 │   ├── ClaimDimensionCard.tsx  # Atomic claim card (WHAT, WHERE, WHEN, WHO)
-│   └── EvidenceCard.tsx        # Traceable evidence & source citation card
+│   ├── EvidenceCard.tsx        # Traceable evidence & source citation card
+│   └── TypewriterText.tsx      # Mechanical monospace typewriter animation
 │
 ├── lib/
-│   ├── gemini.ts               # Gemini client initialization (@google/genai)
+│   ├── ai/                     # Multi-provider AI Orchestration Layer
+│   │   ├── types.ts            # Shared AI provider interfaces & response types
+│   │   ├── gemini.ts           # Google Gemini primary provider implementation
+│   │   ├── grok.ts             # xAI Grok fallback provider implementation
+│   │   ├── provider.ts         # Central AI Orchestrator & fallback dispatcher
+│   │   └── index.ts            # Public AI layer exports
+│   ├── gemini.ts               # Server-only Gemini client & model configuration
+│   ├── gemini-service.ts       # Service layer connected to AI orchestrator
 │   ├── claims.ts               # Claim deconstruction helpers & schemas
 │   ├── evidence.ts             # Evidence relationships & reasoning helpers
 │   ├── supabase.ts             # Supabase persistence client setup
 │   └── utils.ts                # Tailwind class utility (clsx + twMerge)
 │
 ├── types/
-│   └── index.ts                # TypeScript interfaces & Zod validation schemas
+│   └── index.ts                # TypeScript interfaces, Zod schemas & AI types
 │
 ├── public/                     # Static media & assets
 ├── .env.local.example          # Environment variables template
-├── .gitignore                  # Git ignore rules
+├── .gitignore                  # Git ignore rules (protects .env.local)
 ├── package.json                # Project dependencies & scripts
 └── README.md                   # Project documentation
 ```
 
 ---
 
-## 6. Getting Started
+## 6. Getting Started & AI Setup
 
 ### Prerequisites
 * [Node.js](https://nodejs.org/) (v20+ recommended)
 * [pnpm](https://pnpm.io/) (v9+)
+* Google Gemini API Key (from [Google AI Studio](https://aistudio.google.com/))
+* xAI Grok API Key (from [xAI Console](https://console.x.ai/) - optional, for fallback)
 
 ### Installation
 
@@ -178,32 +221,46 @@ ContextLock/
    ```bash
    cp .env.local.example .env.local
    ```
-   Add your keys:
+   Add your keys to `.env.local`:
    ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+   # Google Gemini API Key (Primary Provider, server-only)
+   GEMINI_API_KEY=AIzaSy...
+
+   # xAI Grok API Key (Fallback Provider, server-only)
+   GROK_API_KEY=xai-...
+
+   # Optional AI Provider Strategy Override: "auto" (default) | "gemini" | "grok"
+   # AI_PROVIDER=auto
+
+   # Supabase Persistence Configuration
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
    ```
 
-4. Run the development server:
+4. Verify AI Connection:
+   Start the dev server and test the diagnostic endpoint:
    ```bash
    pnpm run dev
    ```
+   Navigate to [http://localhost:3000/api/gemini/test](http://localhost:3000/api/gemini/test) in your browser or run:
+   ```bash
+   curl http://localhost:3000/api/gemini/test
+   ```
+   This executes the live pipeline:
+   `Next.js API Route -> AI Orchestrator -> Primary (Gemini) / Fallback (Grok) -> Normalized Structured JSON Output`
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 7. Current Status: Foundation Phase
+## 7. Current Status: Multi-Provider AI Architecture
 
-This repository contains the **clean architectural foundation** for ContextLock:
-* ✅ Full TypeScript types & Zod schemas for media, claims, atomic decomposition, and evidence.
-* ✅ Modular library layers for Gemini (`@google/genai`), Supabase, claims, and evidence.
-* ✅ API Route Handler contract (`/api/verify`) with runtime Zod validation.
-* ✅ Modern, dark-mode investigative UI shell (`/` and `/verify`).
+* ✅ Official `@google/genai` SDK integrated as primary provider.
+* ✅ xAI Grok API integrated as automated fallback provider.
+* ✅ Server-only AI orchestrator (`lib/ai/`) with zero key leakage.
+* ✅ Normalized structured JSON output conforming to Zod schemas across both providers.
+* ✅ Modular service layer (`lib/gemini-service.ts`) with `analyzeMedia()` and claim decomposition.
+* ✅ Development testing override support via `AI_PROVIDER=gemini | grok | auto`.
+* ✅ Separation of visual observations from verification conclusions.
+* ✅ Diagnostic verification endpoint (`/api/gemini/test`) reporting active provider status.
 
-### Intentionally Not Implemented in this Step:
-* ⏳ Live Gemini multimodal pipeline calls (to be integrated in the next milestone).
-* ⏳ Live Google Search grounding retrieval.
-* ⏳ Database tables / Supabase migration schemas.
-* ⏳ User authentication / accounts.

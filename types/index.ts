@@ -13,6 +13,8 @@ import { z } from "zod";
 // Supported Media Types
 export type MediaType = "image" | "video";
 
+import type { ProcessedVideo } from "../lib/video/types";
+
 export interface MediaInput {
   id?: string;
   type: MediaType;
@@ -30,6 +32,7 @@ export interface MediaInput {
     };
     cameraModel?: string;
   };
+  processedVideo?: ProcessedVideo;
 }
 
 // Atomic Claim Dimension Classification
@@ -86,6 +89,43 @@ export interface ClaimContextInput {
   claimedLocation?: string;
 }
 
+export type SyntheticMediaStatus =
+  | "synthetic_indicators"
+  | "no_strong_indicators"
+  | "inconclusive";
+
+export type SyntheticIndicatorCategory =
+  | "visual_artifact"
+  | "facial_consistency"
+  | "lighting"
+  | "geometry"
+  | "text"
+  | "reflection"
+  | "temporal_consistency"
+  | "audio_visual"
+  | "other";
+
+export type IndicatorSeverity = "low" | "medium" | "high";
+
+export interface SyntheticMediaIndicator {
+  category: SyntheticIndicatorCategory;
+  observation: string;
+  severity: IndicatorSeverity;
+}
+
+export interface SyntheticMediaAnalysis {
+  status: SyntheticMediaStatus;
+  confidence: "low" | "medium" | "high";
+  indicators: SyntheticMediaIndicator[];
+  explanation: string;
+}
+
+export interface ZkReceipt {
+  commitment: string;
+  proof: string;
+  verdict: string;
+}
+
 export interface VerificationResult {
   id: string;
   timestamp: string;
@@ -95,7 +135,9 @@ export interface VerificationResult {
   summaryExplanation: string;
   atomicClaims: AtomicClaim[];
   evidence: EvidenceSource[];
+  syntheticMediaAnalysis?: SyntheticMediaAnalysis;
   geminiModelUsed?: string;
+  zkReceipt?: ZkReceipt;
 }
 
 // ==========================================
@@ -147,6 +189,39 @@ export const AtomicClaimSchema = z.object({
   evidenceIds: z.array(z.string()),
 });
 
+export const SyntheticMediaIndicatorSchema = z.object({
+  category: z.enum([
+    "visual_artifact",
+    "facial_consistency",
+    "lighting",
+    "geometry",
+    "text",
+    "reflection",
+    "temporal_consistency",
+    "audio_visual",
+    "other",
+  ]),
+  observation: z.string().describe("Specific observable visual/audio clue or anomaly"),
+  severity: z.enum(["low", "medium", "high"]),
+});
+
+export const SyntheticMediaAnalysisSchema = z.object({
+  status: z.enum([
+    "synthetic_indicators",
+    "no_strong_indicators",
+    "inconclusive",
+  ]),
+  confidence: z.enum(["low", "medium", "high"]),
+  indicators: z.array(SyntheticMediaIndicatorSchema),
+  explanation: z.string().describe("Balanced, objective explanation of findings without declaring absolute proof"),
+});
+
+export const ZkReceiptSchema = z.object({
+  commitment: z.string(),
+  proof: z.string(),
+  verdict: z.string(),
+});
+
 export const VerificationResultSchema = z.object({
   id: z.string(),
   timestamp: z.string(),
@@ -163,7 +238,52 @@ export const VerificationResultSchema = z.object({
   summaryExplanation: z.string(),
   atomicClaims: z.array(AtomicClaimSchema),
   evidence: z.array(EvidenceSourceSchema),
+  syntheticMediaAnalysis: SyntheticMediaAnalysisSchema.optional(),
   geminiModelUsed: z.string().optional(),
+  zkReceipt: ZkReceiptSchema.optional(),
 });
 
 export type VerifyRequest = z.infer<typeof VerifyRequestSchema>;
+
+// ==========================================
+// Gemini Multimodal Observations & Reasoning Types
+// ==========================================
+
+export interface MediaObservations {
+  observations: string[];
+  visibleText: string[];
+  locationClues: string[];
+  timeClues: string[];
+  notableDetails: string[];
+}
+
+export const MediaObservationsSchema = z.object({
+  observations: z
+    .array(z.string())
+    .describe("Objective visual or audio observations directly present in the media"),
+  visibleText: z
+    .array(z.string())
+    .describe("Any readable text, signs, logos, banners, or subtitles"),
+  locationClues: z
+    .array(z.string())
+    .describe("Geographical clues including architectural style, road signage, landmarks, foliage"),
+  timeClues: z
+    .array(z.string())
+    .describe("Temporal indicators such as daylight conditions, weather, vehicle eras, clothing styles"),
+  notableDetails: z
+    .array(z.string())
+    .describe("Notable specific details, potential artifacts, or distinctive elements"),
+});
+
+export interface MultimodalMediaPart {
+  inlineData?: {
+    mimeType: string;
+    data: string; // Base64 encoded string
+  };
+  fileUri?: string;
+}
+
+export interface MediaObservationInput {
+  textPrompt?: string;
+  mediaParts?: MultimodalMediaPart[];
+}
